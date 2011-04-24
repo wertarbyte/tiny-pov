@@ -65,11 +65,17 @@ static uint8_t cycle_position(void) {
 	return min( CYCLE_POS_MAX, (CYCLE_POS_MAX*clock.current/clock.last_duration));
 }
 
+#define N_SPOKES 3
+#define SEGMENT_WIDTH ((CYCLE_POS_MAX+1)/N_SPOKES)
+#define W_SPOKES 50.0
+
+#define OFFSET (0)
+
 int main(void) {
 	init();
 	while(1) {
-		uint8_t p = cycle_position();
-		if (p < CYCLE_POS_MAX/4 || (p > CYCLE_POS_MAX/2 && p < 3*CYCLE_POS_MAX/4) ) {
+		uint8_t p = (cycle_position() + OFFSET)%(CYCLE_POS_MAX+1);
+		if (p%(SEGMENT_WIDTH) < (W_SPOKES/100.0)*(SEGMENT_WIDTH)) {
 			PORTD = 0;
 		} else {
 			PORTD = ~0;
