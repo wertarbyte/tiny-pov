@@ -59,7 +59,7 @@ SIGNAL(SIG_TIMER1_COMPA) {
 
 }
 
-#define CYCLE_POS_MAX 255
+#define CYCLE_POS_MAX UINT8_MAX
 #define min(a,b) ((a)>(b)?(b):(a))
 static uint8_t cycle_position(void) {
 	return min( CYCLE_POS_MAX, (CYCLE_POS_MAX*clock.current/clock.last_duration));
