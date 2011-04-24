@@ -1,5 +1,6 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <math.h>
 
 #define output_low(port,pin) port &= ~(1<<pin)
 #define output_high(port,pin) port |= (1<<pin)
@@ -45,12 +46,17 @@ static void cycle_finished(void) {
 	clock.current = 0;
 }
 
+static volatile uint8_t trigger_state = 0;
+
 SIGNAL(SIG_TIMER1_COMPA) {
-	if ( PINB & (1<<PB0) && clock.current > 500) {
+	uint8_t temp = PINB & (1<<PB0);
+	if ( temp && !trigger_state && clock.current > 20) {
 		cycle_finished();
 	} else {
 		clock.current++;
 	}
+	trigger_state = temp;
+
 }
 
 #define CYCLE_POS_MAX 255
@@ -63,11 +69,8 @@ int main(void) {
 	init();
 	while(1) {
 		uint8_t p = cycle_position();
-		if ( p<=(CYCLE_POS_MAX/4) || (p>=(CYCLE_POS_MAX/2) && p<=(CYCLE_POS_MAX*3/4)) ) {
-			PORTD = 0;
-		} else {
-			PORTD = ~(0);
-		}
+		uint8_t y = (1.0*p/CYCLE_POS_MAX)*(N_LEDS-1);
+		PORTD = ~(1<<y);
 	}
 	return 0;
 }
