@@ -21,7 +21,7 @@ const static uint8_t PIN[N_LEDS] = {
 static volatile struct {
 	unsigned long last_duration;
 	unsigned long current;
-} clock = {1024L, 1};
+} clock = {1, 1};
 
 static void init(void) {
 	for (int i=0; i<N_LEDS; i++) {
@@ -69,8 +69,11 @@ int main(void) {
 	init();
 	while(1) {
 		uint8_t p = cycle_position();
-		uint8_t y = (1.0*p/CYCLE_POS_MAX)*(N_LEDS-1);
-		PORTD = ~(1<<y);
+		if (p < CYCLE_POS_MAX/4 || (p > CYCLE_POS_MAX/2 && p < 3*CYCLE_POS_MAX/4) ) {
+			PORTD = 0;
+		} else {
+			PORTD = ~0;
+		}
 	}
 	return 0;
 }
