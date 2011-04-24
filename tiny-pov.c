@@ -1,8 +1,5 @@
 #include <avr/io.h>
-#include <util/delay.h>
 #include <avr/interrupt.h>
-#include <avr/eeprom.h>
-#include <stdlib.h>
 
 #define output_low(port,pin) port &= ~(1<<pin)
 #define output_high(port,pin) port |= (1<<pin)
@@ -30,19 +27,17 @@ static void init(void) {
 		set_output(DDRD, PIN[i]);
 		output_high(PORTD, PIN[i]);
 	}
+	set_input(DDRB, PB0);
 
 	OCR1A = 2;
 	TCCR1A = 0x00;
 	// WGM1=4, prescale at 1024
-	// TCCR1B = (0 << WGM13)|(1 << WGM12)|(1 << CS12)|(0 << CS11)|(1 << CS10);
-	TCCR1B = (0 << WGM13)|(1 << WGM12)|(0 << CS12)|(0 << CS11)|(1 << CS10);
+	TCCR1B = (0 << WGM13)|(1 << WGM12)|(1 << CS12)|(0 << CS11)|(1 << CS10);
+	//TCCR1B = (0 << WGM13)|(1 << WGM12)|(0 << CS12)|(0 << CS11)|(1 << CS10);
 	//Set bit 6 in TIMSK to enable Timer 1 compare interrupt
 	TIMSK |= (1 << OCIE1A);
-	sei();
-}
 
-SIGNAL(SIG_TIMER1_COMPA) {
-	clock.current++;
+	sei();
 }
 
 static void cycle_finished(void) {
@@ -50,23 +45,28 @@ static void cycle_finished(void) {
 	clock.current = 0;
 }
 
+SIGNAL(SIG_TIMER1_COMPA) {
+	if ( PINB & (1<<PB0) && clock.current > 500) {
+		cycle_finished();
+	} else {
+		clock.current++;
+	}
+}
+
 #define CYCLE_POS_MAX 255
-static int cycle_position(void) {
-	return CYCLE_POS_MAX*clock.current/clock.last_duration;
+#define min(a,b) ((a)>(b)?(b):(a))
+static uint8_t cycle_position(void) {
+	return min( CYCLE_POS_MAX, (CYCLE_POS_MAX*clock.current/clock.last_duration));
 }
 
 int main(void) {
 	init();
 	while(1) {
-		int p = cycle_position();
-		if ( (p>=0 && p<=(CYCLE_POS_MAX/4)) || (p>=(CYCLE_POS_MAX/2) && p<=(CYCLE_POS_MAX*3/4)) ) {
+		uint8_t p = cycle_position();
+		if ( p<=(CYCLE_POS_MAX/4) || (p>=(CYCLE_POS_MAX/2) && p<=(CYCLE_POS_MAX*3/4)) ) {
 			PORTD = 0;
 		} else {
 			PORTD = ~(0);
-		}
-		// We should query some kind of hall sensor for this
-		if (p >= CYCLE_POS_MAX) {
-			cycle_finished();
 		}
 	}
 	return 0;
