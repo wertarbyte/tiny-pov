@@ -1,5 +1,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/sleep.h>
+#include <util/delay.h>
 #include <math.h>
 
 #define output_low(port,pin) port &= ~(1<<pin)
@@ -37,13 +39,32 @@ static void init(void) {
 	//TCCR1B = (0 << WGM13)|(1 << WGM12)|(0 << CS12)|(0 << CS11)|(1 << CS10);
 	//Set bit 6 in TIMSK to enable Timer 1 compare interrupt
 	TIMSK |= (1 << OCIE1A);
-
 	sei();
 }
 
 static void cycle_finished(void) {
 	clock.last_duration = clock.current;
 	clock.current = 0;
+}
+
+static void slumber(void) {
+	// disable timer interrupt
+	TIMSK &= ~(1 << OCIE1A);
+	// make sure we are not interrupted anymore
+	_delay_ms(10);
+	// turn off the lights
+	PORTD = ~0;
+	// enable PCINT0
+	PCMSK |= (1<<PCINT0);
+	GIMSK |= (1<<PCIE);
+	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+	sei();
+	sleep_mode();
+	// restore interrupt configuration and reset clock
+	GIMSK &= ~(1<<PCIE);
+	clock.current = 0;
+	clock.last_duration = 1;
+	TIMSK |= 1 << OCIE1A;
 }
 
 static volatile uint8_t trigger_state = 0;
@@ -56,8 +77,13 @@ SIGNAL(SIG_TIMER1_COMPA) {
 		clock.current++;
 	}
 	trigger_state = temp;
-
+	if (clock.current > 600) {
+		slumber();
+	}
 }
+
+SIGNAL (SIG_PCINT) {}
+
 
 #define CYCLE_POS_MAX UINT8_MAX
 #define min(a,b) ((a)>(b)?(b):(a))
