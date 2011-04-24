@@ -47,24 +47,25 @@ SIGNAL(SIG_TIMER1_COMPA) {
 
 static void cycle_finished(void) {
 	clock.last_duration = clock.current;
-	clock.current -= clock.last_duration;
+	clock.current = 0;
 }
 
-static double cycle_percent(void) {
-	return 100.0*clock.current/(double)clock.last_duration;
+#define CYCLE_POS_MAX 255
+static int cycle_position(void) {
+	return CYCLE_POS_MAX*clock.current/clock.last_duration;
 }
 
 int main(void) {
 	init();
 	while(1) {
-		double p = cycle_percent();
-		if ( (p>=0 && p<=25) || (p>=50 && p<=75) ) {
+		int p = cycle_position();
+		if ( (p>=0 && p<=(CYCLE_POS_MAX/4)) || (p>=(CYCLE_POS_MAX/2) && p<=(CYCLE_POS_MAX*3/4)) ) {
 			PORTD = 0;
 		} else {
 			PORTD = ~(0);
 		}
 		// We should query some kind of hall sensor for this
-		if (p > 100) {
+		if (p >= CYCLE_POS_MAX) {
 			cycle_finished();
 		}
 	}
