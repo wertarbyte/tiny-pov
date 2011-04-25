@@ -95,7 +95,7 @@ static uint8_t cycle_position(void) {
 #define SEGMENT_WIDTH ((CYCLE_POS_MAX+1)/N_SPOKES)
 #define W_SPOKES 50.0
 
-#define OFFSET (0)
+#define OFFSET ((int)(-0.26*(CYCLE_POS_MAX+1)))
 
 int main(void) {
 	init();
