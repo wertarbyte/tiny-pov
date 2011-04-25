@@ -20,10 +20,24 @@ const static uint8_t PIN[N_LEDS] = {
 	PD5,
 };
 
+#define CYCLE_POS_MAX UINT8_MAX
+
+#define N_DAUGHTERS 1
+const static struct {
+	uint8_t offset;
+} daughters[N_DAUGHTERS] = {
+	{ CYCLE_POS_MAX/2 },
+};
+
 static volatile struct {
 	unsigned long last_duration;
 	unsigned long current;
 } clock = {1, 1};
+
+#define SR_PORT PORTB
+#define SR_DATA PB1
+#define SR_CLOCK PB2
+#define SR_LATCH PB3
 
 static void init(void) {
 	for (int i=0; i<N_LEDS; i++) {
@@ -31,6 +45,9 @@ static void init(void) {
 		output_high(PORTD, PIN[i]);
 	}
 	set_input(DDRB, PB0);
+	set_output(DDRB, PB1);
+	set_output(DDRB, PB2);
+	set_output(DDRB, PB3);
 
 	OCR1A = 2;
 	TCCR1A = 0x00;
@@ -41,6 +58,24 @@ static void init(void) {
 	TIMSK |= (1 << OCIE1A);
 	sei();
 }
+
+static void shift_out(uint8_t data) {
+	for (int i = 0; i < 8; i++) {
+		if (data & (1<<i)) {
+			SR_PORT |= 1<<SR_DATA;
+		} else {
+			SR_PORT &= ~(1<<SR_DATA);
+		}
+		SR_PORT |= (1<<SR_CLOCK);
+		SR_PORT &= ~(1<<SR_CLOCK);
+	}
+}
+
+static void trigger_latch(void) {
+	SR_PORT |= (1<<SR_LATCH);
+	SR_PORT &= ~(1<<SR_LATCH);
+}
+
 
 static void cycle_finished(void) {
 	clock.last_duration = clock.current;
@@ -54,6 +89,8 @@ static void slumber(void) {
 	_delay_ms(10);
 	// turn off the lights
 	PORTD = ~0;
+	shift_out(~0);
+	trigger_latch();
 	// enable PCINT0
 	PCMSK |= (1<<PCINT0);
 	GIMSK |= (1<<PCIE);
@@ -108,7 +145,6 @@ static const uint8_t arrow[IMG_ROWS] = {
 };
 #endif
 
-#define CYCLE_POS_MAX UINT8_MAX
 #define min(a,b) ((a)>(b)?(b):(a))
 static uint8_t cycle_position(void) {
 	return min( CYCLE_POS_MAX, (CYCLE_POS_MAX*clock.current/clock.last_duration));
@@ -118,20 +154,33 @@ static uint8_t cycle_position(void) {
 #define SEGMENT_WIDTH ((CYCLE_POS_MAX+1)/N_SPOKES)
 #define W_SPOKES 50.0
 
-#define OFFSET ((int)(-0.26*(CYCLE_POS_MAX+1)))
+#define GLOBAL_OFFSET ((int)(-0.26*(CYCLE_POS_MAX+1)))
+
+static uint8_t get_content(uint8_t pos) {
+	if (pos%(SEGMENT_WIDTH) < (W_SPOKES/100.0)*(SEGMENT_WIDTH)) {
+		// this area will be painted
+		double s_percent = 1.0*(pos%SEGMENT_WIDTH)/((W_SPOKES/100.0)*(SEGMENT_WIDTH));
+		uint8_t row = (int)(s_percent*IMG_ROWS);
+		return arrow[row];
+	} else {
+		return 0;
+	}
+}
 
 int main(void) {
 	init();
 	while(1) {
-		uint8_t p = (cycle_position() + OFFSET)%(CYCLE_POS_MAX+1);
-		if (p%(SEGMENT_WIDTH) < (W_SPOKES/100.0)*(SEGMENT_WIDTH)) {
-			// this area will be painted
-			double s_percent = 1.0*(p%SEGMENT_WIDTH)/((W_SPOKES/100.0)*(SEGMENT_WIDTH));
-			uint8_t row = (int)(s_percent*IMG_ROWS);
-			PORTD = ~(arrow[row]);
-		} else {
-			PORTD = ~0;
+		uint8_t p = (cycle_position() + GLOBAL_OFFSET)%(CYCLE_POS_MAX+1);
+		// handle any daughter boards
+		for (uint8_t i=0; i<N_DAUGHTERS; i++) {
+			uint8_t content = get_content((p+daughters[i].offset)%(CYCLE_POS_MAX+1));
+			shift_out(~content);
 		}
+		// handle the main board
+		uint8_t content = get_content(p);
+		PORTD = ~content;
+		// activate the daughter boards
+		trigger_latch();
 	}
 	return 0;
 }
