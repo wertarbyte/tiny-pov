@@ -84,6 +84,29 @@ SIGNAL(SIG_TIMER1_COMPA) {
 
 SIGNAL (SIG_PCINT) {}
 
+#ifdef ARROW
+#define IMG_ROWS 13
+static const uint8_t arrow[IMG_ROWS] = {
+	0b000000,
+	0b001100,
+	0b001100,
+	0b001100,
+	0b001100,
+	0b001100,
+	0b111111,
+	0b111111,
+	0b011110,
+	0b011110,
+	0b001100,
+	0b000000,
+	0b000000
+};
+#else
+#define IMG_ROWS 1
+static const uint8_t arrow[IMG_ROWS] = {
+	~0,
+};
+#endif
 
 #define CYCLE_POS_MAX UINT8_MAX
 #define min(a,b) ((a)>(b)?(b):(a))
@@ -102,7 +125,10 @@ int main(void) {
 	while(1) {
 		uint8_t p = (cycle_position() + OFFSET)%(CYCLE_POS_MAX+1);
 		if (p%(SEGMENT_WIDTH) < (W_SPOKES/100.0)*(SEGMENT_WIDTH)) {
-			PORTD = 0;
+			// this area will be painted
+			double s_percent = 1.0*(p%SEGMENT_WIDTH)/((W_SPOKES/100.0)*(SEGMENT_WIDTH));
+			uint8_t row = (int)(s_percent*IMG_ROWS);
+			PORTD = ~(arrow[row]);
 		} else {
 			PORTD = ~0;
 		}
