@@ -104,8 +104,12 @@ static void init(void) {
  *  Shift data to the daughter boards.
  */
 static void shift_out(uint8_t data) {
+	/*
+	 *  QA is not connected, while
+	 *  QB controls the innermost LED
+	 */
 	for (int i = 0; i < 8; i++) {
-		if (data & (1<<i)) {
+		if ((data<<1) & (1<<i)) {
 			SR_PORT |= 1<<SR_DATA;
 		} else {
 			SR_PORT &= ~(1<<SR_DATA);
