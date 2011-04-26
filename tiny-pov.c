@@ -76,10 +76,17 @@ const static struct {
  *  Clock storing the duration of the last wheel rotation
  *  and the current number of ticks
  */
+enum clockstate {
+	INVALID,
+	PENDING, // first contact has been made, waiting for second one
+	VALID
+};
+
 static volatile struct {
+	enum clockstate state;
 	unsigned long last_duration;
 	unsigned long current;
-} clock = {1, 1};
+} clock = {INVALID, 1, 1};
 
 static void init(void) {
 	for (int i=0; i<ELEMS(LED); i++) {
@@ -134,7 +141,15 @@ static void trigger_latch(void) {
  *  reset the clock counter.
  */
 static void cycle_finished(void) {
-	clock.last_duration = clock.current;
+	switch(clock.state) {
+		case INVALID:
+			clock.state = PENDING;
+			break;
+		case PENDING:
+			clock.state = VALID;
+		case VALID:
+			clock.last_duration = clock.current;
+	}
 	clock.current = 0;
 }
 
@@ -153,13 +168,13 @@ static void slumber(void) {
 	// enable PCINT0
 	PCMSK |= (1<<PCINT0);
 	GIMSK |= (1<<PCIE);
+	// invalidate clock
+	clock.state = INVALID;
 	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	sei();
 	sleep_mode();
 	// restore interrupt configuration and reset clock
 	GIMSK &= ~(1<<PCIE);
-	clock.current = 0;
-	clock.last_duration = 1;
 	TIMSK |= 1 << OCIE1A;
 }
 
@@ -256,15 +271,17 @@ static uint8_t get_content(uint8_t pos) {
 int main(void) {
 	init();
 	while(1) {
-		uint8_t p = (cycle_position() + GLOBAL_OFFSET)%(CYCLE_POS_CNT);
+		// only display something with a valid clock content
+		uint8_t on = (clock.state == VALID);
+		uint8_t p = on ? (cycle_position() + GLOBAL_OFFSET)%(CYCLE_POS_CNT) : 0;
 		// handle any daughter boards
 		for (uint8_t i=0; i<ELEMS(daughters); i++) {
-			uint8_t content = get_content((p+daughters[i].offset)%CYCLE_POS_CNT);
+			uint8_t content = on ? get_content((p+daughters[i].offset)%CYCLE_POS_CNT) : 0;
 			// invert the bitmask since LED are activated on LOW ports.
 			shift_out(~content);
 		}
 		// handle the main board
-		uint8_t content = get_content(p);
+		uint8_t content = on ? get_content(p) : 0;
 		// invert the bitmask since LED are activated on LOW ports.
 		LED_PORT = ~content;
 		// activate the daughter board LEDs
