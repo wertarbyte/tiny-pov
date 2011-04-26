@@ -58,7 +58,7 @@ const static uint8_t LED[] = {
  *  Reed contact triggered every turn
  *  by magnet at bicycle frame
  */
-#define REED_PORT PORTB
+#define REED_IPORT PINB
 #define REED_DDR DDRB
 #define REED_PIN PB0
 
@@ -187,7 +187,7 @@ static volatile uint8_t trigger_state = 0;
 
 SIGNAL(SIG_TIMER1_COMPA) {
 	// Check the reed contact
-	uint8_t temp = PINB & (1<<PB0);
+	uint8_t temp = REED_IPORT & (1<<REED_PIN);
 	if ( temp && !trigger_state && clock.current > 20) {
 		cycle_finished();
 	} else {
