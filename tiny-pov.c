@@ -64,12 +64,17 @@ const static uint8_t LED[] = {
 
 const static struct {
 	uint8_t offset;
+	uint8_t shift;
 } daughters[] = {
 	/*
-	 * A single daugher board installed 180°
+	 * The main board, not using a shift register
+	 */
+	{   0, 0 },
+	/*
+	 * A single daugher board installed ~ 180°
 	 * next to the main device
 	 */
-	{ 138 },
+	{ 138, 1 },
 };
 
 /*
@@ -278,12 +283,13 @@ int main(void) {
 		for (uint8_t i=0; i<ELEMS(daughters); i++) {
 			uint8_t content = on ? get_content((p+daughters[i].offset)%CYCLE_POS_CNT) : 0;
 			// invert the bitmask since LED are activated on LOW ports.
-			shift_out(~content);
+			if (daughters[i].shift) {
+				shift_out(~content);
+			} else {
+				// directly connected
+				LED_PORT = ~content;
+			}
 		}
-		// handle the main board
-		uint8_t content = on ? get_content(p) : 0;
-		// invert the bitmask since LED are activated on LOW ports.
-		LED_PORT = ~content;
 		// activate the daughter board LEDs
 		trigger_latch();
 	}
