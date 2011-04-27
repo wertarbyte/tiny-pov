@@ -158,6 +158,8 @@ static void cycle_finished(void) {
 	clock.current = 0;
 }
 
+static void update_leds(void);
+
 /*
  *  Put the system to sleep after turning all lights off.
  */
@@ -166,15 +168,13 @@ static void slumber(void) {
 	TIMSK &= ~(1 << OCIE1A);
 	// make sure we are not interrupted anymore
 	_delay_ms(10);
-	// turn off the lights
-	LED_PORT = ~0;
-	shift_out(~0);
-	trigger_latch();
 	// enable PCINT0
 	PCMSK |= (1<<PCINT0);
 	GIMSK |= (1<<PCIE);
 	// invalidate clock
 	clock.state = INVALID;
+	// turn off the lights
+	update_leds();
 	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	sei();
 	sleep_mode();
@@ -273,25 +273,29 @@ static uint8_t get_content(uint8_t pos) {
 	}
 }
 
+static void update_leds(void) {
+	// only display something with a valid clock content
+	uint8_t on = (clock.state == VALID);
+	uint8_t p = on ? (cycle_position() + GLOBAL_OFFSET)%(CYCLE_POS_CNT) : 0;
+	// handle any daughter boards
+	for (uint8_t i=0; i<ELEMS(daughters); i++) {
+		uint8_t content = on ? get_content((p+daughters[i].offset)%CYCLE_POS_CNT) : 0;
+		// invert the bitmask since LED are activated on LOW ports.
+		if (daughters[i].shift) {
+			shift_out(~content);
+		} else {
+			// directly connected
+			LED_PORT = ~content;
+		}
+	}
+	// activate the daughter board LEDs
+	trigger_latch();
+}
+
 int main(void) {
 	init();
 	while(1) {
-		// only display something with a valid clock content
-		uint8_t on = (clock.state == VALID);
-		uint8_t p = on ? (cycle_position() + GLOBAL_OFFSET)%(CYCLE_POS_CNT) : 0;
-		// handle any daughter boards
-		for (uint8_t i=0; i<ELEMS(daughters); i++) {
-			uint8_t content = on ? get_content((p+daughters[i].offset)%CYCLE_POS_CNT) : 0;
-			// invert the bitmask since LED are activated on LOW ports.
-			if (daughters[i].shift) {
-				shift_out(~content);
-			} else {
-				// directly connected
-				LED_PORT = ~content;
-			}
-		}
-		// activate the daughter board LEDs
-		trigger_latch();
+		update_leds();
 	}
 	return 0;
 }
